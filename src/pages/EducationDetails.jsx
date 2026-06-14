@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { saveEducationDetails } from "../services/api";
+import { getAuthSession, saveAuthSession } from "../services/authSession";
 
 function EducationDetails() {
   const navigate = useNavigate();
@@ -7,6 +9,45 @@ function EducationDetails() {
   const [stream, setStream] = useState("");
   const [institution, setInstitution] = useState("");
   const [gpa, setGpa] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleContinue = async () => {
+    setError("");
+
+    const session = getAuthSession();
+
+    if (!session.userId && !session.email) {
+      setError('Missing user record. Please sign up or log in again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await saveEducationDetails({
+        user_id: session.userId,
+        email: session.email,
+        current_education_level: level,
+        stream,
+        school_college_name: institution,
+        average_percentage_gpa: gpa,
+      });
+
+      saveAuthSession({
+        fullName: session.fullName,
+        email: session.email,
+        userId: response.education_details?.user_id || session.userId,
+        studentId: response.education_details?.user_id || session.userId,
+      });
+
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Could not save education details');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -262,8 +303,15 @@ function EducationDetails() {
             </div>
           </div>
 
+          {error ? (
+            <p style={{ color: '#b91c1c', marginTop: 18, marginBottom: 0, fontSize: 14, textAlign: 'center' }}>
+              {error}
+            </p>
+          ) : null}
+
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={handleContinue}
+            disabled={isSubmitting}
             style={{
               width: "100%",
               padding: "16px 20px",
@@ -275,9 +323,10 @@ function EducationDetails() {
               fontWeight: 700,
               background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 60%, #d946ef 100%)",
               cursor: "pointer",
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            Continue
+            {isSubmitting ? 'Saving...' : 'Continue'}
           </button>
         </div>
       </div>

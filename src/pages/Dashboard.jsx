@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSavedCareers, saveCareer } from '../services/savedCareers';
 import { getUserProfile } from '../services/userProfile';
+import ChatBot from '../components/ChatBot';
+import { getAuthSession } from '../services/authSession';
+import { getCareerAssessmentFromDb } from '../services/api';
 
 function Dashboard() {
   const navigate = useNavigate();
   const [userName, setUserName] = useState('Rahul Kumar');
   const [savedTitles, setSavedTitles] = useState([]);
+  const [showChat, setShowChat] = useState(false);
+  const [hasAssessment, setHasAssessment] = useState(false);
 
   const careerMatches = [
     { title: 'AI/ML Engineer', salary: '₹15-25 LPA', match: '95%' },
@@ -16,17 +21,73 @@ function Dashboard() {
   useEffect(() => {
     const profile = getUserProfile();
     setUserName(profile.fullName || 'Rahul Kumar');
-    setSavedTitles(getSavedCareers().map((item) => item.title));
+    async function loadSaved() {
+      const saved = await getSavedCareers();
+      setSavedTitles(saved.map((item) => item.title));
+    }
+    loadSaved();
+
+    const session = getAuthSession();
+    const userId = session?.userId;
+
+    async function loadAssessment() {
+      if (userId) {
+        try {
+          const res = await getCareerAssessmentFromDb(userId);
+          if (res && res.success && res.assessment) {
+            localStorage.setItem('careerAssessmentResult', JSON.stringify(res.assessment));
+            
+            if (res.assessment.answers) {
+              const optionMapping = { 'Very Interested': 0, 'Interested': 1, 'Neutral': 2, 'Not Interested': 3 };
+              const reconstructedAnswers = Array(10).fill(2);
+              for (let i = 1; i <= 10; i++) {
+                const ansVal = res.assessment.answers[`q${i}`];
+                if (ansVal !== undefined) {
+                  reconstructedAnswers[i - 1] = optionMapping[ansVal] !== undefined ? optionMapping[ansVal] : 2;
+                }
+              }
+              localStorage.setItem('assessmentAnswers', JSON.stringify({ answers: reconstructedAnswers }));
+            }
+            setHasAssessment(true);
+            return;
+          }
+        } catch (err) {
+          if (err.message && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+            localStorage.removeItem('careerAssessmentResult');
+            localStorage.removeItem('assessmentAnswers');
+            setHasAssessment(false);
+            return;
+          }
+        }
+      }
+
+      const assessment = localStorage.getItem('careerAssessmentResult');
+      if (assessment) {
+        try {
+          const parsed = JSON.parse(assessment);
+          if (parsed) {
+            setHasAssessment(true);
+          }
+        } catch (e) {
+          setHasAssessment(false);
+        }
+      } else {
+        setHasAssessment(false);
+      }
+    }
+
+    loadAssessment();
   }, []);
 
-  const handleSave = (career) => {
-    saveCareer(career);
-    setSavedTitles(getSavedCareers().map((item) => item.title));
+  const handleSave = async (career) => {
+    const updated = await saveCareer(career);
+    setSavedTitles(updated.map((item) => item.title));
   };
 
   const features = [
     { icon: '⊙', title: 'Explore Domains', color: '#e0f2fe' },
-    { icon: '🔖', title: 'Saved Careers', color: '#fce7f3' },
+    { icon: '🔖', title: `Saved Careers${savedTitles.length > 0 ? ` (${savedTitles.length})` : ''}`, color: '#fce7f3' },
+    { icon: '🤖', title: 'AI Career Assistant', color: '#ede9fe' },
   ];
 
   return (
@@ -146,6 +207,62 @@ function Dashboard() {
         
       </div>
 
+        <button
+          type="button"
+          onClick={() => setShowChat((current) => !current)}
+          style={{
+            position: 'fixed',
+            right: '20px',
+            bottom: '20px',
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            border: 'none',
+            borderRadius: '999px',
+            padding: '14px 18px',
+            background: 'linear-gradient(90deg, #2563eb 0%, #7c3aed 60%)',
+            color: 'white',
+            fontWeight: 700,
+            boxShadow: '0 12px 28px rgba(37, 99, 235, 0.28)',
+            cursor: 'pointer',
+          }}
+        >
+          <span>AI Career Assistant</span>
+        </button>
+
+        {showChat && (
+          <div
+            style={{
+              position: 'fixed',
+              right: '20px',
+              bottom: '84px',
+              zIndex: 50,
+              width: 'min(92vw, 420px)',
+              maxHeight: '80vh',
+              background: 'white',
+              borderRadius: '20px',
+              boxShadow: '0 18px 42px rgba(15, 23, 42, 0.2)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 50%, #ec4899 100%)', color: 'white' }}>
+              <strong>Career AI Chatbot</strong>
+              <button
+                type="button"
+                onClick={() => setShowChat(false)}
+                style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 18, cursor: 'pointer' }}
+                aria-label="close chat"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: 16, maxHeight: 'calc(80vh - 52px)', overflowY: 'auto' }}>
+              <ChatBot />
+            </div>
+          </div>
+        )}
+
       {/* Main Content */}
       <div style={{ padding: '24px 16px', maxWidth: '700px', margin: '0 auto' }}>
         {/* AI Career Match Card */}
@@ -169,7 +286,7 @@ function Dashboard() {
             }}
           >
             <h3 style={{ margin: '0', fontSize: '24px', fontWeight: '600' }}>
-              AI Career Match Ready!
+              {hasAssessment ? "Your Career Match is Ready!" : "AI Career Match Ready!"}
             </h3>
             <span style={{ fontSize: '32px' }}>✨</span>
           </div>
@@ -181,10 +298,13 @@ function Dashboard() {
               lineHeight: '1.5',
             }}
           >
-            Take our assessment to discover your perfect career path
+            {hasAssessment
+              ? "View your personalized career recommendations and matches."
+              : "Take our assessment to discover your perfect career path"
+            }
           </p>
           <button
-            onClick={() => navigate('/assessment')}
+            onClick={() => navigate(hasAssessment ? '/recommendation' : '/assessment')}
             style={{
               backgroundColor: 'white',
               color: '#d946ef',
@@ -203,7 +323,7 @@ function Dashboard() {
               e.target.style.transform = 'translateY(0)';
             }}
           >
-            Start Assessment
+            {hasAssessment ? "View Results" : "Start Assessment"}
           </button>
         </div>
 
@@ -241,8 +361,10 @@ function Dashboard() {
             onClick={() => {
               if (feature.title === 'Explore Domains') {
                 navigate('/explore');
-              } else if (feature.title === 'Saved Careers') {
+              } else if (feature.title.startsWith('Saved Careers')) {
                 navigate('/saved-careers');
+              } else if (feature.title === 'AI Career Assistant') {
+                navigate('/chatbot');
               }
             }}
             >

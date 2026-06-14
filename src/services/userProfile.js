@@ -19,7 +19,15 @@ export function getUserProfile() {
 }
 
 export function saveUserProfile(profile) {
-  const updated = { ...defaultProfile, ...profile };
+  const updated = {
+    ...defaultProfile,
+    ...profile,
+    fullName: profile?.fullName ?? profile?.full_name ?? defaultProfile.fullName,
+    email: profile?.email ?? defaultProfile.email,
+    age: profile?.age ?? defaultProfile.age,
+    gender: profile?.gender ?? defaultProfile.gender,
+  };
+
   window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(updated));
   return updated;
 }

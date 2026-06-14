@@ -1,12 +1,150 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { registerUser } from "../services/api";
+import { saveAuthSession, clearAuthSession } from "../services/authSession";
+import { saveUserProfile } from "../services/userProfile";
+import {
+  getAgeError,
+  getConfirmPasswordError,
+  getEmailError,
+  getNameError,
+  getPhoneError,
+  getRequiredError,
+} from "../services/validation";
+
+const initialValues = {
+  fullName: "",
+  age: "",
+  email: "",
+  gender: "",
+  phone: "",
+  password: "",
+  confirmPassword: "",
+};
+
+function validateSignUpField(name, value, values) {
+  if (name === 'fullName') return getNameError(value);
+  if (name === 'age') return getAgeError(value);
+  if (name === 'email') return getEmailError(value);
+  if (name === 'gender') return getRequiredError(value, 'Gender');
+  if (name === 'phone') return getPhoneError(value);
+  if (name === 'password') return getRequiredError(value, 'Password');
+  if (name === 'confirmPassword') return getConfirmPasswordError(values.password, value);
+  return '';
+}
+
+function validateSignUpForm(values) {
+  return {
+    fullName: getNameError(values.fullName),
+    age: getAgeError(values.age),
+    email: getEmailError(values.email),
+    gender: getRequiredError(values.gender, 'Gender'),
+    phone: getPhoneError(values.phone),
+    password: getRequiredError(values.password, 'Password'),
+    confirmPassword: getConfirmPasswordError(values.password, values.confirmPassword),
+  };
+}
 
 function SignUp() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [values, setValues] = useState(initialValues);
+  const [errors, setErrors] = useState(initialValues);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setValues((currentValues) => {
+      const nextValues = { ...currentValues, [name]: value };
+
+      setErrors((currentErrors) => ({
+        ...currentErrors,
+        [name]: validateSignUpField(name, value, nextValues),
+      }));
+
+      if (name === 'password' && currentValues.confirmPassword) {
+        setErrors((currentErrors) => ({
+          ...currentErrors,
+          confirmPassword: getConfirmPasswordError(value, currentValues.confirmPassword),
+        }));
+      }
+
+      return nextValues;
+    });
+
+    setError('');
+    setSuccessMessage('');
+  };
+
+  const handleCreateAccount = async (event) => {
+    event.preventDefault();
+
+    const nextErrors = validateSignUpForm(values);
+    setErrors(nextErrors);
+    setError('');
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setSuccessMessage('');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSuccessMessage('Validation passed. Creating account...');
+
+      const response = await registerUser({
+        full_name: values.fullName,
+        age: values.age,
+        email: values.email,
+        gender: values.gender,
+        phone_number: values.phone,
+        password: values.password,
+        confirm_password: values.confirmPassword,
+      });
+
+      clearAuthSession();
+
+      saveAuthSession({
+        userId: response.user?.id ?? null,
+        studentId: response.user?.id ?? null,
+        email: response.user?.email || values.email,
+        fullName: response.user?.full_name || values.fullName,
+      });
+
+      saveUserProfile({
+        fullName: response.user?.full_name || values.fullName,
+        email: response.user?.email || values.email,
+        age: response.user?.age || values.age,
+      });
+
+      navigate('/personal-details');
+    } catch (err) {
+      setSuccessMessage('');
+      setError(err.message || 'Registration failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const inputStyle = {
+    border: 'none',
+    outline: 'none',
+    flex: 1,
+    fontSize: 16,
+    background: 'transparent',
+    width: '100%',
+  };
+
+  const errorStyle = {
+    color: '#b91c1c',
+    marginTop: 8,
+    fontSize: 14,
+    minHeight: 18,
+  };
 
   return (
     <div
@@ -98,7 +236,7 @@ function SignUp() {
             Start your career planning journey
           </p>
 
-          <div style={{ display: "grid", gap: "18px" }}>
+          <form onSubmit={handleCreateAccount} style={{ display: "grid", gap: "18px" }} noValidate>
             <div>
               <label
                 style={{
@@ -123,18 +261,118 @@ function SignUp() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>👤</span>
                 <input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  name="fullName"
+                  value={values.fullName}
+                  onChange={handleChange}
                   placeholder="Enter your full name"
+                  style={inputStyle}
+                  autoComplete="name"
+                />
+              </div>
+              <div style={errorStyle}>{errors.fullName}</div>
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontSize: 14, color: "#374151", marginBottom: 8 }}>
+                Age
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#f8fafc", borderRadius: 16, padding: "14px 16px", border: "1px solid #e6e7ea" }}>
+                <span style={{ fontSize: 18, color: "#9ca3af" }}>🎂</span>
+                <input
+                  name="age"
+                  value={values.age}
+                  onChange={handleChange}
+                  placeholder="Enter your age"
+                  style={inputStyle}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </div>
+              <div style={errorStyle}>{errors.age}</div>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                Gender
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: "#f8fafc",
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  border: "1px solid #e6e7ea",
+                }}
+              >
+                <span style={{ fontSize: 18, color: "#9ca3af" }}>⚧</span>
+                <select
+                  name="gender"
+                  value={values.gender}
+                  onChange={handleChange}
                   style={{
                     border: "none",
                     outline: "none",
                     flex: 1,
                     fontSize: 16,
                     background: "transparent",
+                    color: values.gender ? "#111827" : "#6b7280",
+                    appearance: "none",
+                    cursor: "pointer",
                   }}
+                >
+                  <option value="">Select your gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+              </div>
+              <div style={errorStyle}>{errors.gender}</div>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                Phone Number
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: "#f8fafc",
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  border: "1px solid #e6e7ea",
+                }}
+              >
+                <span style={{ fontSize: 18, color: "#9ca3af" }}>📞</span>
+                <input
+                  name="phone"
+                  value={values.phone}
+                  onChange={handleChange}
+                  placeholder="Enter your phone number"
+                  style={inputStyle}
+                  inputMode="numeric"
+                  autoComplete="tel"
                 />
               </div>
+              <div style={errorStyle}>{errors.phone}</div>
             </div>
 
             <div>
@@ -161,18 +399,15 @@ function SignUp() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>✉️</span>
                 <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  name="email"
+                  value={values.email}
+                  onChange={handleChange}
                   placeholder="Enter your email"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  autoComplete="email"
                 />
               </div>
+              <div style={errorStyle}>{errors.email}</div>
             </div>
 
             <div>
@@ -199,19 +434,17 @@ function SignUp() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>🔒</span>
                 <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={values.password}
+                  onChange={handleChange}
                   placeholder="Create a password"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  autoComplete="new-password"
                 />
                 <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
                   style={{
                     background: "none",
                     border: "none",
@@ -220,9 +453,9 @@ function SignUp() {
                     cursor: "pointer",
                     padding: 0,
                   }}
-                  aria-label="toggle-password"
+                  aria-label={showPassword ? 'hide-password' : 'show-password'}
                 >
-                  👁️
+                  {showPassword ? '🙈' : '👁️'}
                 </button>
               </div>
             </div>
@@ -251,19 +484,17 @@ function SignUp() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>🔒</span>
                 <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={values.confirmPassword}
+                  onChange={handleChange}
                   placeholder="Confirm your password"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  autoComplete="new-password"
                 />
                 <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((current) => !current)}
                   style={{
                     background: "none",
                     border: "none",
@@ -272,16 +503,29 @@ function SignUp() {
                     cursor: "pointer",
                     padding: 0,
                   }}
-                  aria-label="toggle-confirm-password"
+                  aria-label={showConfirmPassword ? 'hide-confirm-password' : 'show-confirm-password'}
                 >
-                  👁️
+                  {showConfirmPassword ? '🙈' : '👁️'}
                 </button>
               </div>
+              <div style={errorStyle}>{errors.confirmPassword}</div>
             </div>
-          </div>
+
+          {error ? (
+            <p style={{ color: '#b91c1c', marginTop: '18px', marginBottom: 0, fontSize: 14, textAlign: 'center' }}>
+              {error}
+            </p>
+          ) : null}
+
+          {successMessage ? (
+            <p style={{ color: '#166534', marginTop: 12, marginBottom: 0, fontSize: 14, textAlign: 'center' }}>
+              {successMessage}
+            </p>
+          ) : null}
 
           <button
-            onClick={() => navigate('/personal-details')}
+            type="submit"
+            disabled={isSubmitting}
             style={{
               width: "100%",
               padding: "14px 20px",
@@ -293,9 +537,10 @@ function SignUp() {
               fontWeight: 600,
               background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 60%, #d946ef 100%)",
               cursor: "pointer",
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            Create Account
+            {isSubmitting ? 'Creating Account...' : 'Create Account'}
           </button>
 
           <p
@@ -308,6 +553,7 @@ function SignUp() {
           >
             Already have an account?{' '}
             <button
+              type="button"
               onClick={() => navigate('/login')}
               style={{
                 background: "none",
@@ -321,9 +567,10 @@ function SignUp() {
               Sign In
             </button>
           </p>
-        </div>
+        </form>
       </div>
     </div>
+  </div>
   );
 }
 

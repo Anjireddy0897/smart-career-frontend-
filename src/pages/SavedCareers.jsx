@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSavedCareers } from '../services/savedCareers';
+import { getSavedCareers, removeSavedCareer } from '../services/savedCareers';
 
 function SavedCareers() {
   const navigate = useNavigate();
   const [savedCareers, setSavedCareers] = useState([]);
 
   useEffect(() => {
-    setSavedCareers(getSavedCareers());
+    async function load() {
+      const data = await getSavedCareers();
+      setSavedCareers(data);
+    }
+    load();
   }, []);
 
   return (
@@ -90,9 +94,34 @@ function SavedCareers() {
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{career.title}</p>
                 <p style={{ margin: '8px 0 0', color: '#6b7280' }}>{career.salary}</p>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: 0, fontSize: 14, color: '#8b5cf6', fontWeight: 700 }}>Saved</p>
-                <p style={{ margin: '6px 0 0', fontSize: 14, color: '#9ca3af' }}>{career.match} match</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#8b5cf6', fontWeight: 700 }}>Saved</p>
+                  <p style={{ margin: '6px 0 0', fontSize: 14, color: '#9ca3af' }}>{career.match} match</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const updated = await removeSavedCareer(career.title);
+                    setSavedCareers(updated);
+                  }}
+                  style={{
+                    background: '#fee2e2',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: '#ef4444',
+                    width: 36,
+                    height: 36,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s',
+                  }}
+                  title="Remove saved career"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           ))

@@ -1,25 +1,37 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { submitCareerAssessment } from '../services/api';
+import { getAuthSession } from '../services/authSession';
 
 const questions = [
-	"How interested are you in solving complex logic puzzles?",
-	"Do you enjoy working with data and statistics?",
-	"How do you feel about designing user interfaces?",
-	"Are you interested in managing teams and projects?",
-	"Do you enjoy writing technical documentation?",
-	"Do you like researching and learning new technologies?",
-	"Are you comfortable debugging complex systems?",
-	"Do you enjoy mentoring or teaching others?",
-	"How interested are you in system architecture and design?",
-	"Do you like working directly with customers or stakeholders?",
+	{ id: 'q1', text: 'I enjoy solving logical problems, analyzing information, and finding solutions to challenging situations.' },
+	{ id: 'q2', text: 'I like helping people, understanding their needs, and making a positive impact on their lives.' },
+	{ id: 'q3', text: 'I enjoy leading teams, organizing activities, and making important decisions.' },
+	{ id: 'q4', text: 'I am interested in understanding laws, rules, policies, and how society is governed.' },
+	{ id: 'q5', text: 'I enjoy expressing my ideas through creativity, design, art, or visual storytelling.' },
+	{ id: 'q6', text: 'I enjoy creating content, sharing ideas, and engaging with audiences through digital platforms.' },
+	{ id: 'q7', text: 'I am passionate about performing arts such as music, dance, acting, or public performances.' },
+	{ id: 'q8', text: 'I enjoy strategic thinking, competition, gaming, and exploring new technologies or innovations.' },
+	{ id: 'q9', text: 'I am interested in working with nature, agriculture, transportation systems, or large-scale operations.' },
+	{ id: 'q10', text: 'I prefer creating my own opportunities, taking initiative, and building something independently.' },
 ];
 
-const options = ["Very Interested", "Interested", "Neutral", "Not Interested"];
+const options = [
+	{ label: 'Strongly Agree', value: 'Very Interested' },
+	{ label: 'Agree', value: 'Interested' },
+	{ label: 'Neutral', value: 'Neutral' },
+	{ label: 'Disagree', value: 'Not Interested' },
+	{ label: 'Strongly Disagree', value: 'Not Interested' },
+];
 
 export default function Assessment() {
 	const navigate = useNavigate();
 	const [index, setIndex] = useState(0);
 	const [answers, setAnswers] = useState(Array(questions.length).fill(null));
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [error, setError] = useState('');
+
+	const answerLabels = options.map((option) => option.value);
 
 	function handleSelect(optionIdx) {
 		const next = [...answers];
@@ -27,18 +39,43 @@ export default function Assessment() {
 		setAnswers(next);
 	}
 
-	function handleNext() {
+	async function handleNext() {
 		if (index < questions.length - 1) {
 			setIndex(index + 1);
 		} else {
-			// finished - save answers and navigate to recommendation
-			try {
-				const payload = { answers };
-				localStorage.setItem('assessmentAnswers', JSON.stringify(payload));
-			} catch (e) {
-				// ignore storage errors
+			const session = getAuthSession();
+			const questionPayload = answers.reduce((accumulator, answerIndex, questionIndex) => {
+				accumulator[questions[questionIndex].id] = answerLabels[answerIndex] || '';
+				return accumulator;
+			}, {});
+
+			if (!session.userId && !session.email) {
+				setError('Please log in again before submitting the assessment.');
+				return;
 			}
-			navigate('/recommendation', { state: { answers } });
+
+			setError('');
+			setIsSubmitting(true);
+
+			try {
+				const response = await submitCareerAssessment({
+					user_id: session.userId,
+					email: session.email,
+					...questionPayload,
+				});
+				const assessment = response?.assessment || response;
+
+				if (!assessment) {
+					throw new Error('Assessment saved, but no recommendation data was returned.');
+				}
+				localStorage.setItem('assessmentAnswers', JSON.stringify({ answers }));
+				localStorage.setItem('careerAssessmentResult', JSON.stringify(assessment));
+				navigate('/recommendation', { state: { assessment, answers } });
+			} catch (e) {
+				setError(e.message || 'Failed to save assessment');
+			} finally {
+				setIsSubmitting(false);
+			}
 		}
 	}
 
@@ -64,8 +101,12 @@ export default function Assessment() {
 				</div>
 
 				<div style={{ background: "#fff", padding: 20, borderRadius: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.06)", marginBottom: 18 }}>
-					<h3 style={{ margin: 0 }}>{questions[index]}</h3>
+					<h3 style={{ margin: 0 }}>{questions[index].text}</h3>
 				</div>
+
+				{error ? (
+					<p style={{ color: '#b91c1c', marginTop: 0, marginBottom: 12 }}>{error}</p>
+				) : null}
 
 				<div>
 					{options.map((opt, i) => {
@@ -81,7 +122,7 @@ export default function Assessment() {
 								border: isSelected ? "2px solid #7b2cbf" : "1px solid #ddd",
 								background: isSelected ? "#f6eefc" : "white",
 								cursor: "pointer"
-							}}>{opt}</button>
+							}}>{opt.label}</button>
 						);
 					})}
 				</div>
@@ -91,8 +132,8 @@ export default function Assessment() {
 						{index > 0 ? "Back" : "Cancel"}
 					</button>
 
-					<button onClick={handleNext} disabled={selected === null} style={{ flex: 1, padding: "14px", borderRadius: 12, background: selected === null ? "#ddd" : "#7b2cbf", color: "white", border: "none" }}>
-						{index < questions.length - 1 ? "Next Question" : "Finish"}
+					<button onClick={handleNext} disabled={selected === null || isSubmitting} style={{ flex: 1, padding: "14px", borderRadius: 12, background: selected === null || isSubmitting ? "#ddd" : "#7b2cbf", color: "white", border: "none" }}>
+						{isSubmitting ? 'Saving...' : index < questions.length - 1 ? "Next Question" : "Finish"}
 					</button>
 				</div>
 			</main>

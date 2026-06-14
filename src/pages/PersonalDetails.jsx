@@ -1,13 +1,119 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { savePersonalDetails } from "../services/api";
+import { saveAuthSession } from "../services/authSession";
+import { getDobError, getNameError, getPhoneError, getRequiredError } from "../services/validation";
+
+const initialValues = {
+  fullName: "",
+  dob: "",
+  gender: "",
+  phone: "",
+  city: "",
+};
+
+function validatePersonalField(name, value) {
+  if (name === 'fullName') return getNameError(value);
+  if (name === 'dob') return getDobError(value);
+  if (name === 'gender') return getRequiredError(value, 'Gender');
+  if (name === 'phone') return getPhoneError(value);
+  if (name === 'city') return getRequiredError(value, 'City');
+  return '';
+}
+
+function validatePersonalForm(values) {
+  return {
+    fullName: getNameError(values.fullName),
+    dob: getDobError(values.dob),
+    gender: getRequiredError(values.gender, 'Gender'),
+    phone: getPhoneError(values.phone),
+    city: getRequiredError(values.city, 'City'),
+  };
+}
 
 function PersonalDetails() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [dob, setDob] = useState("");
-  const [gender, setGender] = useState("");
-  const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("");
+  const [values, setValues] = useState(initialValues);
+  const [errors, setErrors] = useState(initialValues);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setValues((currentValues) => ({
+      ...currentValues,
+      [name]: value,
+    }));
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [name]: validatePersonalField(name, value),
+    }));
+
+    setError('');
+    setSuccessMessage('');
+  };
+
+  const handleContinue = async (event) => {
+    event.preventDefault();
+
+    const nextErrors = validatePersonalForm(values);
+    setErrors(nextErrors);
+    setError('');
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setSuccessMessage('');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSuccessMessage('Validation passed. Saving details...');
+
+    try {
+      const session = saveAuthSession({ fullName: values.fullName });
+      const response = await savePersonalDetails({
+        user_id: session.userId,
+        email: session.email,
+        date_of_birth: values.dob,
+        gender: values.gender,
+        phone_number: values.phone,
+        city: values.city,
+      });
+
+      saveAuthSession({
+        userId: response.personal_details?.user_id || session.userId,
+        studentId: response.personal_details?.user_id || session.userId,
+        email: session.email,
+        fullName: values.fullName,
+      });
+
+      navigate('/education-details');
+    } catch (err) {
+      setSuccessMessage('');
+      setError(err.message || 'Could not save personal details');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const inputStyle = {
+    border: 'none',
+    outline: 'none',
+    flex: 1,
+    fontSize: 16,
+    background: 'transparent',
+    width: '100%',
+  };
+
+  const errorStyle = {
+    color: '#b91c1c',
+    marginTop: 8,
+    fontSize: 14,
+    minHeight: 18,
+    textAlign: 'left',
+  };
 
   return (
     <div
@@ -109,7 +215,7 @@ function PersonalDetails() {
             Step 1 of 4
           </p>
 
-          <div style={{ display: "grid", gap: "18px" }}>
+          <form onSubmit={handleContinue} style={{ display: "grid", gap: "18px" }} noValidate>
             <div>
               <label
                 style={{
@@ -134,18 +240,15 @@ function PersonalDetails() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>👤</span>
                 <input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  name="fullName"
+                  value={values.fullName}
+                  onChange={handleChange}
                   placeholder="Enter your full name"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  autoComplete="name"
                 />
               </div>
+              <div style={errorStyle}>{errors.fullName}</div>
             </div>
 
             <div>
@@ -172,18 +275,15 @@ function PersonalDetails() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>📅</span>
                 <input
+                  name="dob"
                   type="date"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  value={values.dob}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  autoComplete="bday"
                 />
               </div>
+              <div style={errorStyle}>{errors.dob}</div>
             </div>
 
             <div>
@@ -210,18 +310,14 @@ function PersonalDetails() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>⚧</span>
                 <input
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
+                  name="gender"
+                  value={values.gender}
+                  onChange={handleChange}
                   placeholder="Select your gender"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
                 />
               </div>
+              <div style={errorStyle}>{errors.gender}</div>
             </div>
 
             <div>
@@ -248,18 +344,16 @@ function PersonalDetails() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>📞</span>
                 <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  name="phone"
+                  value={values.phone}
+                  onChange={handleChange}
                   placeholder="Enter your phone number"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  inputMode="numeric"
+                  autoComplete="tel"
                 />
               </div>
+              <div style={errorStyle}>{errors.phone}</div>
             </div>
 
             <div>
@@ -286,23 +380,32 @@ function PersonalDetails() {
               >
                 <span style={{ fontSize: 18, color: "#9ca3af" }}>📍</span>
                 <input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  name="city"
+                  value={values.city}
+                  onChange={handleChange}
                   placeholder="Enter your city"
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    flex: 1,
-                    fontSize: 16,
-                    background: "transparent",
-                  }}
+                  style={inputStyle}
+                  autoComplete="address-level2"
                 />
               </div>
+              <div style={errorStyle}>{errors.city}</div>
             </div>
-          </div>
+
+          {error ? (
+            <p style={{ color: '#b91c1c', marginTop: 18, marginBottom: 0, fontSize: 14, textAlign: 'center' }}>
+              {error}
+            </p>
+          ) : null}
+
+          {successMessage ? (
+            <p style={{ color: '#166534', marginTop: 12, marginBottom: 0, fontSize: 14, textAlign: 'center' }}>
+              {successMessage}
+            </p>
+          ) : null}
 
           <button
-            onClick={() => navigate('/education-details')}
+            type="submit"
+            disabled={isSubmitting}
             style={{
               width: "100%",
               padding: "16px 20px",
@@ -314,10 +417,12 @@ function PersonalDetails() {
               fontWeight: 700,
               background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 60%, #d946ef 100%)",
               cursor: "pointer",
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            Continue
+            {isSubmitting ? 'Saving...' : 'Continue'}
           </button>
+          </form>
         </div>
       </div>
     </div>

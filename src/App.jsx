@@ -1,5 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import SplashScreen from "./pages/SplashScreen";
+import IntroScreenOne from "./pages/IntroScreenOne";
+import IntroScreenTwo from "./pages/IntroScreenTwo";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -15,6 +18,7 @@ import ProfileInfo from "./pages/ProfileInfo";
 import ForgotPassword from "./pages/ForgotPassword";
 import CareerRecommendation from "./pages/CareerRecommendation";
 import Assessment from "./pages/Assessment";
+import Chatbot from "./pages/Chatbot";
 import Healthcare from "./pages/Healthcare";
 import IT from "./pages/IT";
 import Business from "./pages/Business";
@@ -27,7 +31,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<SplashScreen />} />
+        <Route path="/intro-1" element={<IntroScreenOne />} />
+        <Route path="/intro-2" element={<IntroScreenTwo />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<SignUp />} />
         <Route path="/personal-details" element={<PersonalDetails />} />
@@ -42,6 +49,7 @@ function App() {
         <Route path="/profile-info" element={<ProfileInfo />} />
         <Route path="/assessment" element={<Assessment />} />
         <Route path="/recommendation" element={<CareerRecommendation />} />
+        <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/domain/healthcare" element={<Healthcare />} />
         <Route path="/domain/it" element={<IT />} />
         <Route path="/domain/business" element={<Business />} />

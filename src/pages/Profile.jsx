@@ -1,7 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import { clearAuthSession } from '../services/authSession';
 
 function Profile() {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate('/login');
+  };
 
   const profileItems = [
     { title: 'Profile Information', subtitle: 'Edit your details', icon: 'ℹ️' },
@@ -131,7 +137,7 @@ function Profile() {
           ))}
 
           <button
-            onClick={() => alert('Logged out')}
+            onClick={handleLogout}
             style={{
               width: '100%',
               marginTop: 18,
